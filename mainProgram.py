@@ -10,17 +10,13 @@ mainframe = tk.Tk()
 mainframe.geometry("800x450")
 mainframe.resizable(False, False)
 mainframe.title("YTPMP3U")
-oneXone = ttk.Frame(mainframe, height=50, width=50, style='CustomFrame.TFrame');oneXone.grid(row=0, column=0)
-style = ttk.Style()
-style.configure('CustomFrame.TFrame', background='black', relief='solid', borderwidth=1)
-
 
 # Assigns all of the values for the grid. 'i' is the width, 16, and 'j' is the height.
-frames = {}
-for i in range(16):
-    for j in range(9):
-        frames[f"{i}X{j}"] = ttk.Frame(mainframe, height=50, width=50, relief='solid', style='CustomFrame.TFrame')
-        frames[f"{i}X{j}"].grid(row=j, column=i)
+style = ttk.Style()
+style.configure('CustomFrame.TFrame', background='black', relief='solid', borderwidth=1)
+frames = {(i, j): ttk.Frame(mainframe, height=50, width=50, relief='solid', style='CustomFrame.TFrame') for i in range(16) for j in range(9)}
+for i, j in frames:
+    frames[i, j].grid(row=j, column=i)
 
 # Downloads all of the .mp4 and .mp3 files from the specified playlist
 def downloadVideos(playlistUrl, outputDir):
@@ -212,58 +208,11 @@ def renameMp3Files(outputDir):
 
 
 
+"""
 
+SECOND SECTION
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""
 
 
 
