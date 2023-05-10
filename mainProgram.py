@@ -1,9 +1,10 @@
-import re, os, sys, json, mutagen, subprocess, time
+import re, os, json, mutagen, time, yt_dlp
 import tkinter as tk
-from tkinter import font, filedialog, ttk
+from tkinter import filedialog, ttk
 from PIL import Image
+from moviepy.editor import VideoFileClip
 from mutagen.mp3 import MP3
-from mutagen.id3 import APIC, error
+from mutagen.id3 import APIC
 from mutagen.easyid3 import EasyID3
 
 mainframe = tk.Tk()
@@ -18,20 +19,40 @@ frames = {(i, j): ttk.Frame(mainframe, height=50, width=50, relief='solid', styl
 for i, j in frames:
     frames[i, j].grid(row=j, column=i)
 
+
 # Downloads all of the .mp4 and .mp3 files from the specified playlist
 def downloadVideos(playlistUrl, outputDir):
-    # Downloads the .mp4 and .mp3 files
-    subprocess.call(["yt-dlp", "-f", "bestvideo[height<=500][ext=mp4]+bestaudio[ext=m4a]/best[height<=500][ext=mp4]/bestvideo[height<=500][ext=webm]+bestaudio[ext=webm]/best[height<=500][ext=webm]", "-o", outputDir + "%(title)s.%(ext)s", "--yes-playlist", playlistUrl])
-    subprocess.call(["yt-dlp", "--extract-audio", "--audio-format", "mp3", "-P", outputDir, "-o", "%(title)s.%(ext)s", playlistUrl])
+    # Set the options for the yt-dlp downloader
+    ydl_opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]',
+        'outtmpl': outputDir + '%(title)s.%(ext)s',
+        'yes_playlist': True
+    }
+    # Download the videos and audio files
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([playlistUrl])
+    # Download the audio files
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': outputDir + '%(title)s.%(ext)s',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '0',
+        }],
+        'extractaudio': True,
+        'audioformat': 'mp3',
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([playlistUrl])
 
 
 # Fetches the URLs from the playlist
 def getPlaylistVideoUrls(playlistUrl):
-    process = subprocess.Popen(["yt-dlp", "-j", "--flat-playlist", playlistUrl], stdout=subprocess.PIPE)
-    output, error = process.communicate()
-    urls = [json.loads(line)["url"] for line in output.splitlines()]
-    return urls
-
+    with yt_dlp.YoutubeDL({'extract_flat': 'in_playlist'}) as ydl:
+        result = ydl.extract_info(playlistUrl, download=False)
+        urls = [item['url'] for item in result['entries']]
+        return urls
 
 
 # Downloads all of the descriptions from the videos.
@@ -47,39 +68,38 @@ def downloadVideoDescriptions(videoUrls, outputDir):
         # download descriptions from youtube-dl for new videos
         for url in videoUrls:
             # get the video title
-            process = subprocess.Popen(["yt-dlp", "--get-filename", "--output", "%(title)s", url], stdout=subprocess.PIPE)
-            videoTitle, _ = process.communicate()
-            videoTitle = videoTitle.decode("ISO-8859-1").strip()
+            with yt_dlp.YoutubeDL({'forcefilename': True, 'quiet': True}) as ydl:
+                videoTitle = ydl.extract_info(url, download=False)['title']
             # create empty text file
             outputFilePath = os.path.join(outputDir, videoTitle + ".txt")
-            with open(outputFilePath, "w") as f:
+            with open(outputFilePath, "w", encoding= "Latin-1", errors="replace"):
                 pass
             if url in descriptionDict:
                 # use description data from dictionary if exists
                 videoDescription = descriptionDict[url]
             else:
-                # download description data from youtube-dl for new video
-                process = subprocess.Popen(["yt-dlp", "--get-description", url], stdout=subprocess.PIPE)
-                videoDescription, _ = process.communicate()
-                videoDescription = videoDescription.decode("ISO-8859-1")
+                # download description data from yt-dlp for new video
+                with yt_dlp.YoutubeDL() as ydl:
+                    videoDescription = ydl.extract_info(url, download=False)['description']
                 # store the description data in the dictionary
                 descriptionDict[url] = videoDescription
             # write description to text file
-            with open(outputFilePath, "w", encoding="ISO-8859-1") as f:
-                f.write(videoDescription)
+            with open(outputFilePath, "w", encoding= "Latin-1", errors="replace") as f:
+                f.write(videoDescription.replace("\uFFFD", ""))
         # write the descriptions to file
-        with open(descriptionsFile, 'w') as f:
+        with open(descriptionsFile, 'w', encoding= "Latin-1", errors="replace") as f:
             json.dump(descriptionDict, f)
     os.remove(os.path.join(outputDir, "descriptions.json"))
 
 
-# take a snapshot of each video at the 1-second mark using ffmpeg
 def takeAlbumArt(outputDir):
     for filename in os.listdir(outputDir):
         if filename.endswith(".mp4") or filename.endswith(".webm"):
             input_file = os.path.join(outputDir, filename)
             output_file = os.path.join(outputDir, os.path.splitext(filename)[0] + ".png")
-            subprocess.call(["ffmpeg", "-i", input_file, "-ss", "00:00:01", "-vframes", "1", "-q:v", "2", "-vf", "scale=500:-2,fps=1/15,format=rgba", output_file])
+            clip = VideoFileClip(input_file)
+            clip.save_frame(output_file, t=1)
+            clip.close()
 
 
 # Delete the MP4 file
