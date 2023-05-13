@@ -55,6 +55,49 @@ def getPlaylistVideoUrls(playlistUrl):
         return urls
 
 
+
+def downloadVideoDescriptions(videoUrls, outputDir):
+    print("downloadVideoDescriptions")
+    descriptionDict = {}
+    descriptionsFile = os.path.join(outputDir, 'descriptions.json')
+    if os.path.exists(descriptionsFile):
+        # read description data from file if exists
+        with open(descriptionsFile, 'r') as f:
+            descriptionDict = json.load(f)
+    else:
+        # download descriptions from youtube-dl for new videos
+        ydl_opts = {'quiet': True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            for url in videoUrls:
+                # get the video title
+                video_info = ydl.extract_info(url, download=False)
+                videoTitle = video_info.get('title', None)
+                if videoTitle is None:
+                    continue
+                # create empty text file
+                outputFilePath = os.path.join(outputDir, videoTitle + ".txt")
+                print("Output file path: ", outputFilePath, " Video title: ", videoTitle)
+                os.makedirs(os.path.dirname(outputFilePath), exist_ok=True)
+                if not os.path.isfile(outputFilePath):
+                    with open(outputFilePath, 'w', encoding="utf-8") as f:
+                        pass
+                if url in descriptionDict:
+                    # use description data from dictionary if exists
+                    videoDescription = descriptionDict[url]
+                else:
+                    # download description data from yt-dlp for new video
+                    videoDescription = ydl.extract_info(url, download=False)['description']
+                    # store the description data in the dictionary
+                    descriptionDict[url] = videoDescription
+                # write description to text file
+                with open(outputFilePath, "w", encoding="utf-8") as f:
+                    f.write(videoDescription.replace("\uFFFD", ""))
+        # write the descriptions to file
+        with open(descriptionsFile, 'w', encoding="utf-8") as f:
+            json.dump(descriptionDict, f, ensure_ascii=False)
+    os.remove(os.path.join(outputDir, "descriptions.json"))
+
+
 # Downloads all of the descriptions from the videos.
 def downloadVideoDescriptions(videoUrls, outputDir):
     print("downloadVideoDescriptions")
@@ -68,30 +111,40 @@ def downloadVideoDescriptions(videoUrls, outputDir):
         # download descriptions from youtube-dl for new videos
         for url in videoUrls:
             # get the video title
-            with yt_dlp.YoutubeDL({'forcefilename': True, 'quiet': True}) as ydl:
-                videoTitle = ydl.extract_info(url, download=False)['title']
+            ydl = yt_dlp.YoutubeDL({'quiet': True})
+            info_dict = ydl.extract_info(url, download=False)
+            videoTitle = str(info_dict['title'])
+            videoTitle = videoTitle.strip().replace('/','').replace('\\','').replace(':','').replace('*','').replace('?','').replace('"','').replace('<','').replace('>','').replace('|','')
             # create empty text file
+            print(videoTitle)
             outputFilePath = os.path.join(outputDir, videoTitle + ".txt")
-            with open(outputFilePath, "w", encoding= "Latin-1", errors="replace"):
+            with open(outputFilePath, "w") as f:
                 pass
             if url in descriptionDict:
                 # use description data from dictionary if exists
                 videoDescription = descriptionDict[url]
             else:
-                # download description data from yt-dlp for new video
-                with yt_dlp.YoutubeDL() as ydl:
-                    videoDescription = ydl.extract_info(url, download=False)['description']
+                # download description data from youtube-dl for new video
+                with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+                    info_dict = ydl.extract_info(url, download=False)
+                    videoDescription = str(info_dict['description'].strip())
+                    # store the description data in the dictionary
+                    descriptionDict[url] = videoDescription
                 # store the description data in the dictionary
                 descriptionDict[url] = videoDescription
             # write description to text file
-            with open(outputFilePath, "w", encoding= "Latin-1", errors="replace") as f:
+            with open(outputFilePath, "w", encoding="ISO-8859-1", errors="replace") as f:
                 f.write(videoDescription.replace("\uFFFD", ""))
         # write the descriptions to file
-        with open(descriptionsFile, 'w', encoding= "Latin-1", errors="replace") as f:
+        with open(descriptionsFile, 'w') as f:
             json.dump(descriptionDict, f)
     os.remove(os.path.join(outputDir, "descriptions.json"))
+    
 
 
+
+
+# Gets the album art from the .mp4 file
 def takeAlbumArt(outputDir):
     for filename in os.listdir(outputDir):
         if filename.endswith(".mp4") or filename.endswith(".webm"):
@@ -167,6 +220,7 @@ def deleteIllegalChars(outputDir):
             newFilename = newFilename.replace('＞', '').replace('﹥', '').replace('›', '')
             newFilename = newFilename.replace('＜', '').replace('﹤', '')
             newFilename = newFilename.replace('｜', '').replace('│', '').replace('|', '')
+            newFilename = newFilename.replace('_','')
             newFilename = newFilename.replace('', '')
             if newFilename != filename:
                 os.rename(os.path.join(outputDir, filename), os.path.join(outputDir, newFilename))
@@ -203,7 +257,6 @@ def setMusicMetadata(outputDir):
             audio.save()
             # Delete the .txt file after setting the metadata
             os.remove(os.path.join(outputDir, file[:-4] + '.txt'))
-            print(f"Failed to rename {file}")
 
 
 # Renames files with the artist name and removes illegal characters
