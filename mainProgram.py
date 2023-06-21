@@ -1,4 +1,4 @@
-import re, os, json, mutagen, time, yt_dlp
+import re, os, json, mutagen, time, yt_dlp, threading
 import tkinter as tk
 from tkinter import filedialog, ttk
 from PIL import Image
@@ -18,6 +18,11 @@ style.configure('CustomFrame.TFrame', background='black', relief='solid', border
 frames = {(i, j): ttk.Frame(mainframe, height=50, width=50, relief='solid', style='CustomFrame.TFrame') for i in range(16) for j in range(9)}
 for i, j in frames:
     frames[i, j].grid(row=j, column=i)
+
+
+
+
+
 
 
 # Downloads all of the .mp4 and .mp3 files from the specified playlist
@@ -287,13 +292,42 @@ SECOND SECTION
 
 """
 
+def update_progress(value):
+    current_value = progress_bar["value"]
+    if current_value < value * 10:
+        progress_bar["value"] = current_value + 1
+        mainframe.after(10, update_progress, value)
 
 
 
+
+def download_process(url, directory_path, progress_var):
+    downloadVideos(url, directory_path)
+    progress_var.set(10)
+    urlLists = getPlaylistVideoUrls(url)
+    progress_var.set(20)
+    downloadVideoDescriptions(urlLists, directory_path)
+    progress_var.set(30)
+    takeAlbumArt(directory_path)
+    progress_var.set(40)
+    deleteMp4File(directory_path)
+    progress_var.set(50)
+    addArtworkToMp3Files(directory_path)
+    progress_var.set(60)
+    replaceHashtagSymbol(directory_path)
+    progress_var.set(70)
+    deleteIllegalChars(directory_path)
+    progress_var.set(80)
+    setMusicMetadata(directory_path)
+    progress_var.set(90)
+    renameMp3Files(directory_path)
+    progress_var.set(100)
+    # show_popup()
+    mainframe.after(0, show_popup)
 
 def show_popup():
     # Create the popup window
-    popup_window = tk.Toplevel()
+    popup_window = tk.Toplevel(mainframe)
     popup_window.title("Finished")
     # Add a label to the popup window with the message
     message_label = tk.Label(popup_window, text="Finished Successfully!")
@@ -303,41 +337,20 @@ def show_popup():
     # Run the popup window
     popup_window.mainloop()
 
-def update_progress(value):
-    current_value = progress_bar["value"]
-    if current_value < value * 10:
-        progress_bar["value"] = current_value + 1
-        mainframe.after(10, update_progress, value)
 
-# Function to start downloading playlist
 def start_download():
     directory_path = directoryBox.get()
     directory_path = directory_path + '/'
     url_link = urlBox.get()
-    update_progress(1)
-    downloadVideos(url_link, directory_path)
-    update_progress(2)
-    urlLists = getPlaylistVideoUrls(url_link)
-    update_progress(3)
-    downloadVideoDescriptions(urlLists, directory_path)
-    update_progress(4)
-    takeAlbumArt(directory_path)
-    update_progress(5)
-    deleteMp4File(directory_path)
-    update_progress(6)
-    addArtworkToMp3Files(directory_path)
-    replaceHashtagSymbol(directory_path)
-    update_progress(7)
-    deleteIllegalChars(directory_path)
-    update_progress(8)
-    setMusicMetadata(directory_path)
-    update_progress(9)
-    renameMp3Files(directory_path)
-    update_progress(10)
-    time.sleep(1)
-    show_popup()
-    time.sleep(1)
-    update_progress(0)
+
+    # Create a progress variable to update the progress bar
+    progress_var = tk.DoubleVar()
+    progress_bar.configure(variable=progress_var)
+    progress_var.set(0)
+
+    # Create a separate thread to execute the download process
+    download_thread = threading.Thread(target=download_process, args=(url_link, directory_path, progress_var))
+    download_thread.start()
     
 
 # Function to open file explorer to select directory
@@ -379,4 +392,5 @@ start_button.grid(row=5, column=10, columnspan=4)
 progress_bar = ttk.Progressbar(mainframe, orient="horizontal", length=250, mode="determinate")
 progress_bar.grid(row=4, column=9, columnspan=6)
 
-mainframe.mainloop()
+if __name__ == '__main__':
+    mainframe.mainloop()
