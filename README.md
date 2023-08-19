@@ -1,2 +1,2 @@
 # YTPMP3U
-YouTube Playlist to .mp3 Utility
+YouTube Playlist to .flac Utility
