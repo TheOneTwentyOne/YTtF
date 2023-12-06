@@ -1,2 +1,2 @@
-# YTPFLACU
-YouTube Playlist to .flac Utility
+# YTtF
+YouTube Playlist to file Utility
